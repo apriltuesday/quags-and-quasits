@@ -11,13 +11,22 @@ from textblob import TextBlob
 # epi = epitran.Epitran('eng-Latn')
 DATA_DIR = 'data'
 
+exclusions = [wn.synset('axis.n.01'), wn.synset('point_source.n.01')]
+
 
 def munge(s):
     blob = TextBlob(s)
-    return ' '.join(blob.words[:-1] + [blob.words[-1].pluralize()]).title()
+    # TODO proper pluralisation using head nouns
+    idx = -1
+    for i, tag in enumerate(blob.tags):
+        if tag[1] == 'IN':
+            idx = i - 1
+    blob.words[idx] = blob.words[idx].singularize().pluralize()
+    return ' '.join(blob.words).title()
 
 
 def prep(save=False):
+    # TODO better source of place nouns
     location = [
         wn.synset('location.n.01'),
         wn.synset('building.n.01'),
@@ -25,7 +34,7 @@ def prep(save=False):
         wn.synset('land.n.02'),
         wn.synset('vegetation.n.01')
     ]
-    hypo = lambda s: s.hyponyms()
+    hypo = lambda s: [x for x in s.hyponyms() if x not in exclusions]
     locs = list({
         z.replace('_', ' ')
         for x in location
@@ -73,7 +82,10 @@ def sample(n=1, load=True, dungeons=None, dragons=None):
     results = []
     for _ in range(n):
         options = list(set(dungeons.keys()).intersection(dragons.keys()))
-        probs = np.array([len(dungeons[l]) + len(dragons[l]) for l in options], dtype='float64')
+        probs = np.array(
+            [len(dungeons[l]) + len(dragons[l]) for l in options],
+            dtype='float64'
+        )
         probs /= probs.sum()
         letter = np.random.choice(options, p=probs)
         dungeon = np.random.choice(dungeons[letter])
@@ -84,5 +96,5 @@ def sample(n=1, load=True, dungeons=None, dragons=None):
 
 if __name__ == '__main__':
     # dungeons, dragons = prep(save=True)
-    for x in sample(n=10):
+    for x in sample(n=10, load=True):
         print(x)
